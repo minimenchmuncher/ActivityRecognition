@@ -1,0 +1,22 @@
+---
+title: "Human Activity Recognition Report"
+author: "Ezra Tucker"
+date: "May 12, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+testingFPath <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+trainingFPath <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testing <- read.csv(testingFPath)
+training <- read.csv(trainingFPath)
+```
+
+```{r featureselection}
+library(dplyr); library(caret)
+colVars <- sapply(training, var, na.rm = TRUE)
+modelCtrl <- train(classe~., data=training, method="rf", preProcess = "scale")
+
+```
+## Activity Recognition Report
