@@ -15,8 +15,21 @@ training <- read.csv(trainingFPath)
 
 ```{r featureselection}
 library(dplyr); library(caret)
-colVars <- sapply(training, var, na.rm = TRUE)
-modelCtrl <- train(classe~., data=training, method="rf", preProcess = "scale")
+#colVars <- sapply(training, var, na.rm = TRUE)
+set.seed(1234)
+rpy_belt <- train(classe ~ roll_belt + pitch_belt + yaw_belt, data = training, method = "rf")
+rpy_dumbbell <- train(classe ~ roll_dumbbell + pitch_dumbbell + yaw_dumbbell, data = training, method = "rf")
+rpy_forearm <- train(classe ~ roll_forearm + pitch_forearm + yaw_forearm, data = training, method = "rf")
+gyros_belt <- train(classe ~ gyros_belt_x + gyros_belt_y + gyros_belt_z, data = training, method = "rf")
+accel_belt <- train(classe ~ accel_belt_x + accel_belt_y + accel_belt_z, data = training, method = "rf")
+magnet_belt <- train(classe ~ magnet_belt_x + magnet_belt_y + magnet_belt_z, data = training, method = "rf")
+gyros_dumbbell <- train(classe ~ gyros_dumbbell_x + gyros_dumbbell_y + gyros_dumbbell_z, data = training, method = "rf")
+accel_dumbbell <- train(classe ~ accel_dumbbell_x + accel_dumbbell_y + accel_dumbbell_z, data = training, method = "rf")
+magnet_dumbbell <- train(classe ~ magnet_dumbbell_x + magnet_dumbbell_y + magnet_dumbbell_z, data = training, method = "rf")
+gyros_forearm <- train(classe ~ gyros_forearm_x + gyros_forearm_y + gyros_forearm_z, data = training, method = "rf")
+accel_forearm <- train(classe ~ accel_forearm_x + accel_forearm_y + accel_forearm_z, data = training, method = "rf")
+magnet_forearm <- train(classe ~ magnet_forearm_x + magnet_forearm_y + magnet_forearm_z, data = training, method = "rf")
 
+sum(predict(transl_sensors_belt, training) == training$classe) / nrow(training)
 ```
 ## Activity Recognition Report
