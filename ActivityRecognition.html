@@ -165,7 +165,7 @@ models$rpy_belt &lt;- train(classe ~ roll_belt + pitch_belt + yaw_belt,
 <pre><code>## note: only 2 unique complexity parameters in default grid. Truncating the grid to 2 .</code></pre>
 <p>Please see <code>.Rmd</code> file for complete listing of run models.</p>
 <p>The <code>models</code> list contains each of the models, each follows the same pattern. They are all predicting the <code>classe</code> variable, are all random forests, run off of the <code>training</code> set, the only differences are of the input variables. The <code>models</code> list also contains data from the gyro sensor, the accelerometer, and magnet sensor for each of the belt, the forearm, and the dumbbell sensors, generating twelve independent predictive models.</p>
-<p>The accuracies of each of these models are as follows:</p>
+<p>The accuracies (in-sample) of each of these models are as follows:</p>
 <pre class="r"><code>library(dplyr, warn.conflicts = FALSE); library(knitr); library(caret)
 model_names = sapply(1:12, function(i) deparse(substitute(models[[i]])))
 resultDf &lt;- do.call(rbind, lapply(1:length(models), function(i) {
@@ -200,18 +200,18 @@ knitr::kable(resultDf)</code></pre>
 </tr>
 <tr class="even">
 <td align="left">gyros_belt</td>
-<td align="right">0.5752820</td>
-<td align="right">0.4451235</td>
+<td align="right">0.5754179</td>
+<td align="right">0.4453337</td>
 </tr>
 <tr class="odd">
 <td align="left">accel_belt</td>
-<td align="right">0.7712325</td>
-<td align="right">0.7089218</td>
+<td align="right">0.7714363</td>
+<td align="right">0.7091877</td>
 </tr>
 <tr class="even">
 <td align="left">magnet_belt</td>
-<td align="right">0.9542737</td>
-<td align="right">0.9421370</td>
+<td align="right">0.9544096</td>
+<td align="right">0.9423090</td>
 </tr>
 <tr class="odd">
 <td align="left">gyros_dumbbell</td>
@@ -220,8 +220,8 @@ knitr::kable(resultDf)</code></pre>
 </tr>
 <tr class="even">
 <td align="left">accel_dumbbell</td>
-<td align="right">0.9885175</td>
-<td align="right">0.9854718</td>
+<td align="right">0.9886533</td>
+<td align="right">0.9856437</td>
 </tr>
 <tr class="odd">
 <td align="left">magnet_dumbbell</td>
@@ -230,8 +230,8 @@ knitr::kable(resultDf)</code></pre>
 </tr>
 <tr class="even">
 <td align="left">gyros_forearm</td>
-<td align="right">0.9857997</td>
-<td align="right">0.9820180</td>
+<td align="right">0.9857318</td>
+<td align="right">0.9819321</td>
 </tr>
 <tr class="odd">
 <td align="left">accel_forearm</td>
@@ -245,75 +245,96 @@ knitr::kable(resultDf)</code></pre>
 </tr>
 </tbody>
 </table>
-<p>The accuracies for some of theabove models seem high, and for that reason we’ll use all of the above, to try to avoid overfitting.</p>
-<p>The last step here is to fit a final model based on the <code>models</code> list. For that model we will use a random forest model model. In order to do that, we will need a new data frame of predictions.</p>
-<pre class="r"><code>library(dplyr, warn.conflicts = FALSE)
-predictionDf &lt;- lapply(models, function(m) predict(m, training) ) %&gt;%
-  as.data.frame %&gt;%
-  mutate(classe = training$classe)
-modFinal &lt;- train(classe ~ ., data = predictionDf, method = &quot;rf&quot;, verbose = FALSE)</code></pre>
+<p>The accuracies for some of the above models seem high, and for that reason we’ll use all of the above, to try to avoid over-fitting.</p>
+<p>The last step here is to combine the results given by the predictions in the <code>models</code> list. This could be done in a more sophisticated way; however, it should suffice for our purposes to simply have each row “vote”, ie, take the mode of each row. For that, we’ll want to define a <code>modeFunc</code>:</p>
+<pre class="r"><code>modeFunc &lt;- function(x) {
+  uniqueX &lt;- unique(x)
+  uniqueX[which.max(tabulate(match(x, uniqueX)))]
+}
+
+predictionDf &lt;- lapply(models, function(m) predict(m, training)) %&gt;% as.data.frame
+predTraining &lt;- apply(predictionDf, 1, modeFunc)</code></pre>
 </div>
 <div id="performance-and-error" class="section level3">
 <h3>Performance and Error</h3>
 <p>We will want to assess the in-sample error, which was 75% of the training set available from the data source, using a <code>confusionMatrix</code>. We can get the out-of-sample error estimate by using the remainder, earlier referred to as the <code>validation</code> set.</p>
-<pre class="r"><code>library(dplyr, warn.conflicts = FALSE)
-print(confusionMatrix(modFinal))</code></pre>
-<pre><code>## Bootstrapped (25 reps) Confusion Matrix 
+<pre class="r"><code>#In-sample confusion matrix
+print(confusionMatrix(predTraining, training$classe))</code></pre>
+<pre><code>## Confusion Matrix and Statistics
 ## 
-## (entries are percentual average cell counts across resamples)
-##  
 ##           Reference
 ## Prediction    A    B    C    D    E
-##          A 28.4  0.0  0.0  0.0  0.0
-##          B  0.0 19.4  0.0  0.0  0.0
-##          C  0.0  0.0 17.4  0.0  0.0
-##          D  0.0  0.0  0.0 16.4  0.0
-##          E  0.0  0.0  0.0  0.0 18.5
-##                             
-##  Accuracy (average) : 0.9998</code></pre>
-<pre class="r"><code>predValidation &lt;- lapply(models, function(m) predict(m, validation)) %&gt;%
+##          A 4185    0    0    0    0
+##          B    0 2848    0    0    0
+##          C    0    0 2567    0    0
+##          D    0    0    0 2412    0
+##          E    0    0    0    0 2706
+## 
+## Overall Statistics
+##                                      
+##                Accuracy : 1          
+##                  95% CI : (0.9997, 1)
+##     No Information Rate : 0.2843     
+##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16  
+##                                      
+##                   Kappa : 1          
+##  Mcnemar's Test P-Value : NA         
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            1.0000   1.0000   1.0000   1.0000   1.0000
+## Specificity            1.0000   1.0000   1.0000   1.0000   1.0000
+## Pos Pred Value         1.0000   1.0000   1.0000   1.0000   1.0000
+## Neg Pred Value         1.0000   1.0000   1.0000   1.0000   1.0000
+## Prevalence             0.2843   0.1935   0.1744   0.1639   0.1839
+## Detection Rate         0.2843   0.1935   0.1744   0.1639   0.1839
+## Detection Prevalence   0.2843   0.1935   0.1744   0.1639   0.1839
+## Balanced Accuracy      1.0000   1.0000   1.0000   1.0000   1.0000</code></pre>
+<pre class="r"><code>#Out-of-sample confusion matrix
+predValidation &lt;- lapply(models, function(m) predict(m, validation)) %&gt;%
   as.data.frame %&gt;%
-  predict(modFinal, .)
+  apply(1, modeFunc)
 print(confusionMatrix(predValidation, reference = validation$classe))</code></pre>
 <pre><code>## Confusion Matrix and Statistics
 ## 
 ##           Reference
 ## Prediction    A    B    C    D    E
-##          A 1073  278  201  183   41
-##          B  108  504  133   64    2
-##          C  113   87  415   97    3
-##          D   96   65   96  438    6
-##          E    5   15   10   22  849
+##          A 1365   86  102  111   24
+##          B   13  814   38    8    6
+##          C    7   27  693   39    4
+##          D    8    6   13  627    4
+##          E    2   16    9   19  863
 ## 
 ## Overall Statistics
 ##                                           
-##                Accuracy : 0.6686          
-##                  95% CI : (0.6553, 0.6818)
+##                Accuracy : 0.8895          
+##                  95% CI : (0.8804, 0.8981)
 ##     No Information Rate : 0.2845          
 ##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16       
 ##                                           
-##                   Kappa : 0.5765          
+##                   Kappa : 0.859           
 ##  Mcnemar's Test P-Value : &lt; 2.2e-16       
 ## 
 ## Statistics by Class:
 ## 
 ##                      Class: A Class: B Class: C Class: D Class: E
-## Sensitivity            0.7692   0.5311  0.48538  0.54478   0.9423
-## Specificity            0.7997   0.9224  0.92591  0.93585   0.9870
-## Pos Pred Value         0.6042   0.6215  0.58042  0.62482   0.9423
-## Neg Pred Value         0.8971   0.8913  0.89496  0.91292   0.9870
-## Prevalence             0.2845   0.1935  0.17435  0.16395   0.1837
-## Detection Rate         0.2188   0.1028  0.08462  0.08931   0.1731
-## Detection Prevalence   0.3622   0.1654  0.14580  0.14294   0.1837
-## Balanced Accuracy      0.7844   0.7267  0.70564  0.74031   0.9646</code></pre>
-<p>The in-sample error (1 - accuracy) here is 0.02%, but the out-of-sample error is much higher at 33%.</p>
+## Sensitivity            0.9785   0.8577   0.8105   0.7799   0.9578
+## Specificity            0.9080   0.9836   0.9810   0.9924   0.9885
+## Pos Pred Value         0.8086   0.9261   0.9000   0.9529   0.9494
+## Neg Pred Value         0.9907   0.9665   0.9608   0.9583   0.9905
+## Prevalence             0.2845   0.1935   0.1743   0.1639   0.1837
+## Detection Rate         0.2783   0.1660   0.1413   0.1279   0.1760
+## Detection Prevalence   0.3442   0.1792   0.1570   0.1342   0.1854
+## Balanced Accuracy      0.9432   0.9207   0.8958   0.8861   0.9732</code></pre>
+<p>The in-sample error (1 - accuracy) here is 0%, whereas the out-of-sample error is about 11%; though high, is acceptable for this exercise.</p>
 </div>
 <div id="prediction" class="section level3">
 <h3>Prediction</h3>
 <p>What remains is to predict the values in the testing data set.</p>
 <pre class="r"><code>predFinal &lt;- lapply(models, function(m) predict(m, testing)) %&gt;%
   as.data.frame %&gt;%
-  predict(modFinal, .)
+  apply(1, modeFunc)
 predFinalDf &lt;- data.frame(observation = 1:length(predFinal), classe = predFinal)
 knitr::kable(predFinalDf)</code></pre>
 <table>
@@ -334,11 +355,11 @@ knitr::kable(predFinalDf)</code></pre>
 </tr>
 <tr class="odd">
 <td align="right">3</td>
-<td align="left">A</td>
+<td align="left">B</td>
 </tr>
 <tr class="even">
 <td align="right">4</td>
-<td align="left">D</td>
+<td align="left">A</td>
 </tr>
 <tr class="odd">
 <td align="right">5</td>
@@ -354,7 +375,7 @@ knitr::kable(predFinalDf)</code></pre>
 </tr>
 <tr class="even">
 <td align="right">8</td>
-<td align="left">A</td>
+<td align="left">B</td>
 </tr>
 <tr class="odd">
 <td align="right">9</td>
@@ -386,7 +407,7 @@ knitr::kable(predFinalDf)</code></pre>
 </tr>
 <tr class="even">
 <td align="right">16</td>
-<td align="left">C</td>
+<td align="left">E</td>
 </tr>
 <tr class="odd">
 <td align="right">17</td>
@@ -394,23 +415,24 @@ knitr::kable(predFinalDf)</code></pre>
 </tr>
 <tr class="even">
 <td align="right">18</td>
-<td align="left">C</td>
+<td align="left">B</td>
 </tr>
 <tr class="odd">
 <td align="right">19</td>
-<td align="left">C</td>
+<td align="left">B</td>
 </tr>
 <tr class="even">
 <td align="right">20</td>
-<td align="left">E</td>
+<td align="left">B</td>
 </tr>
 </tbody>
 </table>
 </div>
 <div id="discussion" class="section level3">
 <h3>Discussion</h3>
-<p>There hasn’t been a huge effort towards variable selection. It was generally assumed that the varibles chosen here yield acceptable models, an assumption that worked out well (with the possible exceptions of <code>gyros_belt</code> and <code>accel_belt</code>). The out-of-sample error rate is quite high, and more care could be taken with variable selection.</p>
+<p>There hasn’t been a huge effort towards variable selection. It was generally assumed that the variables chosen here yield acceptable models, an assumption that worked out well (with the possible exceptions of <code>gyros_belt</code> and <code>accel_belt</code>). The out-of-sample error rate is quite high, and more care could be taken with variable selection.</p>
 <p>There may also be gains to be had with combining various different types of models, which was not attempted here.</p>
+<p>It should be also noted here that the simple voting model, while chosen for its speed, may not have even been the best performing model.</p>
 </div>
 </div>
 
