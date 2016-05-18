@@ -77,7 +77,7 @@ Please see `.Rmd` file for complete listing of run models.
 
 The `models` list contains each of the models, each follows the same pattern. They are all predicting the `classe` variable, are all random forests, run off of the `training` set, the only differences are of the input variables. The `models` list also contains data from the gyro sensor, the accelerometer, and magnet sensor for each of the belt, the forearm, and the dumbbell sensors, generating twelve independent predictive models.
 
-The accuracies of each of these models are as follows:
+The accuracies (in-sample) of each of these models are as follows:
 ```{r accuracies, echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
 library(dplyr, warn.conflicts = FALSE); library(knitr); library(caret)
 model_names = sapply(1:12, function(i) deparse(substitute(models[[i]])))
@@ -89,31 +89,36 @@ resultDf <- do.call(rbind, lapply(1:length(models), function(i) {
 knitr::kable(resultDf)
 ```
 
-The accuracies for some of theabove models seem high, and for that reason we'll use all of the above, to try to avoid overfitting.
+The accuracies for some of the above models seem high, and for that reason we'll use all of the above, to try to avoid over-fitting.
 
-The last step here is to fit a final model based on the `models` list. For that model we will use a random forest model model. In order to do that, we will need a new data frame of predictions.
+The last step here is to combine the results given by the predictions in the `models` list. This could be done in a more sophisticated way; however, it should suffice for our purposes to simply have each row "vote", ie, take the mode of each row. For that, we'll want to define a `modeFunc`:
 
-```{r gbmModel, cache = TRUE, echo = TRUE}
-library(dplyr, warn.conflicts = FALSE)
-predictionDf <- lapply(models, function(m) predict(m, training) ) %>%
-  as.data.frame %>%
-  mutate(classe = training$classe)
-modFinal <- train(classe ~ ., data = predictionDf, method = "rf", verbose = FALSE)
+```{r voting}
+modeFunc <- function(x) {
+  uniqueX <- unique(x)
+  uniqueX[which.max(tabulate(match(x, uniqueX)))]
+}
+
+predictionDf <- lapply(models, function(m) predict(m, training)) %>% as.data.frame
+predTraining <- apply(predictionDf, 1, modeFunc)
 ```
 
 ### Performance and Error
 
 We will want to assess the in-sample error, which was 75% of the training set available from the data source, using a `confusionMatrix`. We can get the out-of-sample error estimate by using the remainder, earlier referred to as the `validation` set.
-```{r perfAndError, cache = TRUE, echo = TRUE, message = FALSE, warning = FALSE}
-library(dplyr, warn.conflicts = FALSE)
-print(confusionMatrix(modFinal))
+
+```{r inAndOutErrors, cache = FALSE, echo = TRUE}
+#In-sample confusion matrix
+print(confusionMatrix(predTraining, training$classe))
+
+#Out-of-sample confusion matrix
 predValidation <- lapply(models, function(m) predict(m, validation)) %>%
   as.data.frame %>%
-  predict(modFinal, .)
+  apply(1, modeFunc)
 print(confusionMatrix(predValidation, reference = validation$classe))
 ```
 
-The in-sample error (1 - accuracy) here is 0.02%, but the out-of-sample error is much higher at 33%. 
+The in-sample error (1 - accuracy) here is 0%, whereas the out-of-sample error is about 11%; though high, is acceptable for this exercise.
 
 ### Prediction
 
@@ -122,12 +127,14 @@ What remains is to predict the values in the testing data set.
 ```{r testingPrediction, cache = TRUE, echo = TRUE, }
 predFinal <- lapply(models, function(m) predict(m, testing)) %>%
   as.data.frame %>%
-  predict(modFinal, .)
+  apply(1, modeFunc)
 predFinalDf <- data.frame(observation = 1:length(predFinal), classe = predFinal)
 knitr::kable(predFinalDf)
 ```
 
 ### Discussion
-There hasn't been a huge effort towards variable selection. It was generally assumed that the varibles chosen here yield acceptable models, an assumption that worked out well (with the possible exceptions of `gyros_belt` and `accel_belt`). The out-of-sample error rate is quite high, and more care could be taken with variable selection.
+There hasn't been a huge effort towards variable selection. It was generally assumed that the variables chosen here yield acceptable models, an assumption that worked out well (with the possible exceptions of `gyros_belt` and `accel_belt`). The out-of-sample error rate is quite high, and more care could be taken with variable selection.
 
 There may also be gains to be had with combining various different types of models, which was not attempted here.
+
+It should be also noted here that the simple voting model, while chosen for its speed, may not have even been the best performing model.
